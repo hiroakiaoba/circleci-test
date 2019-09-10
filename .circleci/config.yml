@@ -84,6 +84,16 @@ jobs:
     steps:
       - checkout
       - run:
-            name: docker-compose up
-            command: |
-                docker-compose up -d
+          name: docker-compose up
+          command: |
+            docker-compose up -d
+
+      - run:
+          name: health check web container
+          command: |
+            set -x
+            docker network ls
+            docker ps
+            docker-compose up -d
+            docker run --network container:web \
+            appropriate/curl --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000
