@@ -7,13 +7,8 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys:
-            - v1-docker-{{ .Branch }}
-      - run:
-          name: Load Docker layers cache
-          command: |
-            set +o pipefail
-            docker load -i ~/docker-layers.tar | true
+          key: docker-{{ arch }}-{{ checksum ".circleci/config.yml" }}-{{ checksum "docker-compose.yml" }}-{{ checksum "Dockerfile" }}
+          paths: ~/caches/images.tar
       - run:
           name: git clone projects
           command: |
@@ -39,15 +34,15 @@ jobs:
             sleep 120
             curl http://localhost:3000
       - run:
-          name: Save Docker layers cache
+          name: Check cache file, if not exists then pull images and generate cache.
           command: |
-            DOCKER_IMAGES=$(docker images --format "{{.Repository}}" --filter=reference="${CIRCLE_PROJECT_REPONAME}_*")
-            DOCKER_LAYERS=$(for image in $DOCKER_IMAGES; do docker history $image -q | grep -v missing; done)
-            docker save -o ~/docker-layers.tar $DOCKER_LAYERS
+            if [ ! -f ~/caches/images.tar ]; then
+              mkdir -p ~/caches
+              docker save $(docker images | awk 'NR>=2 && ! /^<none>/{print $1}') -o ~/caches/images.tar
+            fi
       - save_cache:
-          key: v1-docker-{{ .Branch }}-{{ epoch }}
-          paths:
-            - ~/docker-layers.tar
+          key: docker-{{ arch }}-{{ checksum ".circleci/config.yml" }}-{{ checksum "docker-compose.yml" }}-{{ checksum "Dockerfile" }}
+          paths: ~/caches/images.tar
       - run:
           name: test
           command: |
@@ -56,19 +51,19 @@ jobs:
             npm install
             npm start
 
-workflows:
-  version: 2
-  # commit:
-  #   jobs:
-  #     - test
-  #     - deploy
-  nightly:
-    triggers:
-      - schedule:
-          cron: "52 10 * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - build
+# workflows:
+#   version: 2
+#   # commit:
+#   #   jobs:
+#   #     - test
+#   #     - deploy
+#   nightly:
+#     triggers:
+#       - schedule:
+#           cron: "52 10 * * *"
+#           filters:
+#             branches:
+#               only:
+#                 - master
+#     jobs:
+#       - build
